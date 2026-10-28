@@ -15,7 +15,7 @@
   } } }
 </script>
 <style>
-  body { background:#F5F7FB; color:#0C1B38; min-width:1200px; }  /* PC 최적화: 최소 폭 확보 */
+  body { background:#F5F7FB; color:#0C1B38; min-width:1200px; }
   .card { background:#fff; border-radius:20px; box-shadow:0 1px 2px rgba(12,27,56,.04), 0 8px 24px rgba(12,27,56,.06); }
   .day { min-height:118px; transition:background .15s; position:relative; }
   .day:hover { background:#F2F5FA; }
@@ -31,18 +31,27 @@
 <body class="font-sans antialiased">
 <div class="max-w-[1680px] mx-auto px-10 py-8">
 
-  <!-- ===== 헤더 및 빠른 복사/실행 툴바 ===== -->
+  <!-- ===== 헤더 및 실시간 공유 상태 툴바 ===== -->
   <header class="flex items-end justify-between mb-8">
     <div>
       <h1 class="text-3xl font-extrabold tracking-tight">온라인 행사 일정</h1>
       <p id="subtitle" class="text-sm text-slate-500 mt-1"></p>
     </div>
-    <div class="flex items-center gap-4">
-      <span id="syncStatus" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700">실시간 동기화 연결 중...</span>
-      <span id="dataStatus" class="text-sm text-slate-500"></span>
+    <div class="flex items-center gap-3">
+      <span id="syncStatus" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">실시간 동기화 확인 중...</span>
+      <button id="openDbConfig" class="px-4 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-sm">⚙️ 실시간 공유 설정</button>
+      <span id="dataStatus" class="text-sm text-slate-500 ml-1"></span>
       <button id="openUpload" class="px-5 h-11 rounded-full bg-navy-800 hover:bg-navy-700 text-white text-sm font-medium shadow-sm">데이터 업로드</button>
     </div>
   </header>
+
+  <!-- ===== 오프라인 모드일 때 뜨는 안내 배너 ===== -->
+  <div id="offlineBanner" class="hidden mb-6 rounded-2xl bg-amber-50 border border-amber-200 px-6 py-4 flex items-center justify-between">
+    <div class="text-sm text-amber-900">
+      <strong class="font-bold">현재 '로컬 저장 모드'입니다.</strong> 다른 사람과 URL을 공유해 수정 내용을 실시간으로 함께 보려면 우측 버튼을 눌러 Firebase DB 설정을 연결해 주세요.
+    </div>
+    <button id="bannerConfigBtn" class="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold">지금 실시간 공유 연결하기</button>
+  </div>
 
   <!-- ===== 글로벌 필터 바 (채널, 브랜드, 부서, 기간) ===== -->
   <section class="card p-5 mb-6 flex flex-wrap items-center gap-4 text-sm">
@@ -111,7 +120,7 @@
     </aside>
   </main>
 
-  <!-- 차트 영역 (데이터 업데이트 시 자동 갱신) -->
+  <!-- 차트 영역 -->
   <section class="grid grid-cols-[1fr_440px] gap-6">
     <div class="card p-7">
       <h2 class="font-bold">일자별 진행 행사 수</h2>
@@ -161,39 +170,82 @@
   </section>
 </div>
 
+<!-- ===== 실시간 공유(Firebase DB) 설정 모달 ===== -->
+<div id="dbConfigModal" class="hidden fixed inset-0 z-50 bg-navy-900/40 backdrop-blur-sm items-center justify-center p-6" role="dialog" aria-modal="true">
+  <div class="card w-full max-w-2xl p-8 max-h-[92vh] overflow-y-auto">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold">☁️ 실시간 공유 데이터베이스(Firebase) 설정</h2>
+        <p class="text-sm text-slate-500 mt-1">GitHub + Cloudflare 환경에서 모든 접속자가 실시간으로 수정 내용을 공유하려면 Firebase 설정값을 입력해 주세요.</p>
+      </div>
+      <button id="closeDbConfig" aria-label="닫기" class="w-9 h-9 rounded-full hover:bg-navy-100 text-xl leading-none">×</button>
+    </div>
+
+    <div class="rounded-xl bg-slate-50 p-4 text-xs text-slate-600 space-y-1.5 mb-4 leading-relaxed">
+      <p class="font-bold text-navy-900">📌 설정 방법 요약</p>
+      <p>1. <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" class="text-navy-600 underline font-medium">Firebase 콘솔</a>에서 프로젝트 생성 ➔ 웹 앱(<code>&lt;/&gt;</code>) 추가 후 <code>firebaseConfig</code> 복사</p>
+      <p>2. 좌측 메뉴 <b>Firestore Database</b> 생성 (규칙: <code>allow read, write: if true;</code> 설정)</p>
+      <p>3. 아래 입력창에 복사한 코드를 그대로 붙여넣고 <b>[설정 내장된 index.html 다운로드]</b>를 눌러 GitHub에 업로드하면 모든 사용자에게 즉시 자동 적용됩니다.</p>
+    </div>
+
+    <label class="block text-sm font-medium text-slate-700 mb-2">Firebase 설정 코드 또는 JSON 붙여넣기</label>
+    <textarea id="firebaseConfigInput" rows="8" spellcheck="false" class="w-full rounded-xl border border-slate-200 p-3 text-xs font-mono leading-relaxed" placeholder='const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef"
+};'></textarea>
+
+    <div id="dbConfigMsg" class="hidden mt-3 rounded-xl px-4 py-3 text-sm"></div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-100">
+      <button id="copyShareUrlBtn" class="px-4 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium">🔗 설정 포함된 공유 URL 복사</button>
+      <div class="flex gap-2">
+        <button id="downloadConfiguredHtmlBtn" class="px-5 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-sm">💾 설정 내장된 index.html 다운로드 (GitHub용)</button>
+        <button id="saveDbConfigBtn" class="px-6 h-11 rounded-full bg-navy-800 hover:bg-navy-700 text-white text-sm font-medium">지금 연결하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 데이터 업로드 모달 ===== -->
 <div id="modal" class="hidden fixed inset-0 z-50 bg-navy-900/40 backdrop-blur-sm items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="card w-full max-w-3xl p-8 max-h-[92vh] overflow-y-auto">
     <div class="flex items-start justify-between">
       <div>
         <h2 id="mTitle" class="text-xl font-bold">행사 데이터 업로드</h2>
-        <p class="text-sm text-slate-500 mt-1">엑셀에서 복사해 붙여넣거나 파일을 올리면 대시보드가 바로 갱신됩니다.</p>
+        <p class="text-sm text-slate-500 mt-1">엑셀에서 복사해 붙여넣거나 파일을 올리면 실시간으로 모든 접속자에게 반영됩니다.</p>
       </div>
       <button id="closeModal" aria-label="닫기" class="w-9 h-9 rounded-full hover:bg-navy-100 text-xl leading-none">×</button>
     </div>
 
-    <!-- 파일 업로드 -->
     <label id="drop" class="mt-6 flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-200 hover:border-navy-600 hover:bg-navy-50 py-8 cursor-pointer text-center">
       <span class="font-medium text-navy-800">.csv 또는 .xlsx 파일 선택 · 여기로 끌어놓기</span>
       <span id="fileName" class="text-sm text-slate-400">선택된 파일 없음</span>
       <input id="file" type="file" accept=".csv,.tsv,.xlsx,.xls" class="sr-only">
     </label>
 
-    <!-- 붙여넣기 -->
     <p class="text-sm font-medium mt-6 mb-2">또는 엑셀 데이터 붙여넣기 (첫 줄은 헤더)</p>
     <textarea id="paste" rows="8" spellcheck="false" class="w-full rounded-xl border border-slate-200 p-3 text-xs font-mono leading-relaxed" placeholder="행사명&#9;채널명&#9;브랜드명&#9;카테고리&#9;시작일&#9;종료일&#9;시간&#9;주요내용 및 목표&#9;담당부서&#9;링크&#9;목표매출&#9;달성매출
 가을 뷰티 기획전&#9;올리브영&#9;라네즈&#9;기획전&#9;2026-10-12&#9;2026-10-25&#9;상시&#9;거래액 80억 원&#9;MD본부&#9;https://example.com&#9;80억&#9;82억"></textarea>
 
-    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
-      인식 헤더: 행사명 · 채널명 · 브랜드명 · 카테고리(프로모션/라이브방송/기획전/고객 이벤트/이슈) · 시작일 · 종료일 · 시간 · 주요내용 및 목표 · 담당부서 · 링크 · 목표매출 · 달성매출.
-      필수는 <b>행사명</b>과 <b>시작일</b>입니다.
-    </p>
+    <div class="flex items-center justify-between mt-3">
+      <p class="text-xs text-slate-400 leading-relaxed">
+        인식 헤더: 행사명 · 채널명 · 브랜드명 · 카테고리 · 시작일 · 종료일 · 시간 · 주요내용 및 목표 · 담당부서 · 링크 · 목표매출 · 달성매출 (필수: <b>행사명, 시작일</b>)
+      </p>
+      <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700 shrink-0 ml-4 cursor-pointer">
+        <input id="replaceOnUpload" type="checkbox" class="rounded"> 기존 일정 지우고 덮어쓰기
+      </label>
+    </div>
+
     <div id="result" class="hidden mt-4 rounded-xl px-4 py-3 text-sm"></div>
 
     <div class="flex items-center justify-between mt-6">
       <div class="flex gap-4 text-sm">
         <button id="tpl" class="text-navy-600 font-medium hover:underline">샘플 양식 받기</button>
-        <button id="resetData" class="text-slate-500 hover:underline">기본 데이터로 되돌리기</button>
+        <button id="resetData" class="text-slate-500 hover:underline">기본 데이터로 초기화</button>
       </div>
       <button id="apply" class="px-6 h-11 rounded-full bg-navy-800 hover:bg-navy-700 text-white text-sm font-medium">적용하기</button>
     </div>
@@ -210,13 +262,11 @@
     <div class="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
       <label class="col-span-2 block"><span class="text-slate-500">행사명 *</span><input id="f_title" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3"></label>
       
-      <!-- 채널명 드롭다운 + 추가/삭제 관리 -->
       <label class="block">
         <div class="flex items-center justify-between"><span class="text-slate-500">채널명</span><button type="button" id="manageChannelsBtn" class="text-xs text-navy-600 hover:underline">채널 관리</button></div>
         <select id="f_channel" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 bg-white font-medium text-slate-700"></select>
       </label>
 
-      <!-- 브랜드명 드롭다운 + 추가/삭제 관리 -->
       <label class="block">
         <div class="flex items-center justify-between"><span class="text-slate-500">브랜드명</span><button type="button" id="manageBrandsBtn" class="text-xs text-navy-600 hover:underline">브랜드 관리</button></div>
         <select id="f_brand" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 bg-white font-medium text-slate-700"></select>
@@ -224,7 +274,6 @@
 
       <label class="block"><span class="text-slate-500">카테고리</span><select id="f_cat" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></select></label>
       
-      <!-- 담당 부서 드롭다운 + 추가/삭제 관리 -->
       <label class="block">
         <div class="flex items-center justify-between"><span class="text-slate-500">담당 부서</span><button type="button" id="manageDeptsBtn" class="text-xs text-navy-600 hover:underline">부서 관리</button></div>
         <select id="f_dept" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 bg-white font-medium text-slate-700"></select>
@@ -234,7 +283,6 @@
       <label class="block"><span class="text-slate-500">종료일 (하루 행사는 비워 두세요)</span><input id="f_end" type="date" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3"></label>
       <label class="block"><span class="text-slate-500">시간</span><input id="f_time" placeholder="예: 20:00 – 21:00" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3"></label>
       
-      <!-- 목표 매출 및 달성 매출 -->
       <label class="block"><span class="text-slate-500">목표 매출 (예: 80억, 5000만)</span><input id="f_sales" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3"></label>
       <label class="block"><span class="text-slate-500">달성 매출 (예: 75억, 4800만)</span><input id="f_actual_sales" class="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3"></label>
 
@@ -249,7 +297,7 @@
   </div>
 </div>
 
-<!-- ===== 채널/브랜드/부서 관리 모달 (검색 기능 포함) ===== -->
+<!-- ===== 채널/브랜드/부서 관리 모달 ===== -->
 <div id="metaModal" class="hidden fixed inset-0 z-50 bg-navy-900/40 backdrop-blur-sm items-center justify-center p-6" role="dialog" aria-modal="true">
   <div class="card w-full max-w-md p-6">
     <div class="flex items-center justify-between mb-4">
@@ -282,11 +330,27 @@
   <button id="undo" class="px-3 h-8 rounded-full bg-white/15 hover:bg-white/25 font-medium">실행취소</button>
 </div>
 
-<!-- Firebase SDK (실시간 데이터 동기화를 위해 추가됨) -->
+<!-- Firebase SDK -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* =========================================================
+ * ★ 0. GitHub / Cloudflare 배포용 Firebase 설정 영역 ★
+ * 아래 USER_FIREBASE_CONFIG에 본인의 Firebase 설정값을 넣거나,
+ * 웹 화면의 [⚙️ 실시간 공유 설정] 버튼에서 자동 생성된 index.html을 다운로드하세요.
+ * ========================================================= */
+/*__FIREBASE_CONFIG_START__*/
+const USER_FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+/*__FIREBASE_CONFIG_END__*/
 
 /* =========================================================
  * 1. 설정 / 기본(샘플) 데이터
@@ -300,23 +364,23 @@ const CATEGORIES = {
 };
 
 const SAMPLE = [
-  { title:'올영픽 프로모션 (가을 시즌)', channel:'올리브영', brand:'설화수', cat:'promo', start:'2026-10-01', end:'2026-10-03', time:'00:00 – 23:59', goal:'가을 신상 노출 확대 및 객단가 5% 상승', dept:'프로모션기획팀', link:'https://www.example.com/promo-autumn', sales:1.5e9, actualSales:1.42e9 },
-  { title:'브랜드 라이브방송 · 스킨케어', channel:'네이버 쇼핑라이브', brand:'헤라', cat:'live', start:'2026-10-06', end:'', time:'20:00 – 21:00', goal:'동시 시청자 3만 명, 전환율 4.5%', dept:'라이브커머스팀', link:'https://www.example.com/live-skincare', sales:8e8, actualSales:8.5e8 },
-  { title:'신규 고객 웰컴 이벤트', channel:'자사몰', brand:'이니스프리', cat:'event', start:'2026-10-07', end:'2026-10-09', time:'상시', goal:'신규 가입 1.2만 명 확보', dept:'CRM마케팅팀', link:'', sales:0, actualSales:0 },
-  { title:'가을 뷰티 기획전', channel:'올리브영', brand:'라네즈', cat:'expo', start:'2026-10-12', end:'2026-10-25', time:'상시', goal:'기획전 거래액 80억 원', dept:'MD본부', link:'https://www.example.com/expo-beauty', sales:8e9, actualSales:8.2e9 },
-  { title:'올영픽 프로모션 (메이크업)', channel:'올리브영', brand:'헤라', cat:'promo', start:'2026-10-13', end:'2026-10-15', time:'10:00 – 23:59', goal:'메이크업 매출 전월 대비 +12%', dept:'프로모션기획팀', link:'', sales:3e9, actualSales:2.9e9 },
-  { title:'브랜드 라이브방송 · 헤어케어', channel:'카카오 쇼핑라이브', brand:'려', cat:'live', start:'2026-10-14', end:'', time:'19:30 – 20:30', goal:'누적 조회수 10만 회', dept:'라이브커머스팀', link:'https://www.example.com/live-hair', sales:5e8, actualSales:5.3e8 },
-  { title:'앱 정기 점검', channel:'자사몰', brand:'공통', cat:'issue', start:'2026-10-15', end:'', time:'02:00 – 04:00', goal:'서버 안정화 (서비스 일시 중단)', dept:'IT운영팀', link:'', sales:0, actualSales:0 },
-  { title:'멤버십 데이 이벤트', channel:'자사몰', brand:'공통', cat:'event', start:'2026-10-18', end:'', time:'00:00 – 23:59', goal:'멤버십 재방문율 +8%p', dept:'CRM마케팅팀', link:'', sales:1e9, actualSales:1.1e9 },
-  { title:'브랜드 라이브방송 · 바디케어', channel:'네이버 쇼핑라이브', brand:'일리오', cat:'live', start:'2026-10-20', end:'', time:'20:00 – 21:00', goal:'신규 브랜드 인지도 제고', dept:'라이브커머스팀', link:'', sales:3e8, actualSales:2.8e8 },
-  { title:'올영픽 프로모션 (건강식품)', channel:'올리브영', brand:'바이탈뷰티', cat:'promo', start:'2026-10-22', end:'2026-10-24', time:'00:00 – 23:59', goal:'이너뷰티 매출 15억 원', dept:'프로모션기획팀', link:'', sales:1.5e9, actualSales:1.6e9 },
-  { title:'결제 시스템 지연 이슈 대응', channel:'자사몰', brand:'공통', cat:'issue', start:'2026-10-22', end:'', time:'14:00 – 16:00', goal:'원인 분석 및 재발 방지책 수립', dept:'IT운영팀', link:'https://www.example.com/issue-report', sales:0, actualSales:0 },
-  { title:'할로윈 특집 기획전', channel:'올리브영', brand:'에뛰드', cat:'expo', start:'2026-10-26', end:'2026-11-01', time:'상시', goal:'시즌 상품 판매 목표 120%', dept:'MD본부', link:'https://www.example.com/expo-halloween', sales:6e9, actualSales:0 },
-  { title:'브랜드 라이브방송 · 할로윈 특가', channel:'네이버 쇼핑라이브', brand:'에뛰드', cat:'live', start:'2026-10-28', end:'', time:'20:00 – 21:30', goal:'동시 시청자 5만 명 돌파', dept:'라이브커머스팀', link:'', sales:1.2e9, actualSales:0 },
-  { title:'올영픽 프로모션 (할로윈)', channel:'올리브영', brand:'클리오', cat:'promo', start:'2026-10-28', end:'2026-10-30', time:'00:00 – 23:59', goal:'할로윈 한정 세트 완판', dept:'프로모션기획팀', link:'', sales:2e9, actualSales:0 },
-  { title:'할로윈 인증샷 이벤트', channel:'자사몰', brand:'공통', cat:'event', start:'2026-10-31', end:'', time:'00:00 – 23:59', goal:'SNS 참여 5천 건', dept:'소셜마케팅팀', link:'', sales:0, actualSales:0 },
-  { title:'블랙프라이데이 사전 안내', channel:'자사몰', brand:'공통', cat:'promo', start:'2026-11-02', end:'', time:'10:00 – 18:00', goal:'사전 알림 신청 3만 건', dept:'프로모션기획팀', link:'', sales:4e8, actualSales:0 },
-  { title:'브랜드 라이브방송 · 연말 준비', channel:'네이버 쇼핑라이브', brand:'설화수', cat:'live', start:'2026-11-04', end:'', time:'20:00 – 21:00', goal:'연말 선물세트 사전 노출', dept:'라이브커머스팀', link:'', sales:2e8, actualSales:0 },
+  { id:'sample_01', title:'올영픽 프로모션 (가을 시즌)', channel:'올리브영', brand:'설화수', cat:'promo', start:'2026-10-01', end:'2026-10-03', time:'00:00 – 23:59', goal:'가을 신상 노출 확대 및 객단가 5% 상승', dept:'프로모션기획팀', link:'https://www.example.com/promo-autumn', sales:1.5e9, actualSales:1.42e9 },
+  { id:'sample_02', title:'브랜드 라이브방송 · 스킨케어', channel:'네이버 쇼핑라이브', brand:'헤라', cat:'live', start:'2026-10-06', end:'', time:'20:00 – 21:00', goal:'동시 시청자 3만 명, 전환율 4.5%', dept:'라이브커머스팀', link:'https://www.example.com/live-skincare', sales:8e8, actualSales:8.5e8 },
+  { id:'sample_03', title:'신규 고객 웰컴 이벤트', channel:'자사몰', brand:'이니스프리', cat:'event', start:'2026-10-07', end:'2026-10-09', time:'상시', goal:'신규 가입 1.2만 명 확보', dept:'CRM마케팅팀', link:'', sales:0, actualSales:0 },
+  { id:'sample_04', title:'가을 뷰티 기획전', channel:'올리브영', brand:'라네즈', cat:'expo', start:'2026-10-12', end:'2026-10-25', time:'상시', goal:'기획전 거래액 80억 원', dept:'MD본부', link:'https://www.example.com/expo-beauty', sales:8e9, actualSales:8.2e9 },
+  { id:'sample_05', title:'올영픽 프로모션 (메이크업)', channel:'올리브영', brand:'헤라', cat:'promo', start:'2026-10-13', end:'2026-10-15', time:'10:00 – 23:59', goal:'메이크업 매출 전월 대비 +12%', dept:'프로모션기획팀', link:'', sales:3e9, actualSales:2.9e9 },
+  { id:'sample_06', title:'브랜드 라이브방송 · 헤어케어', channel:'카카오 쇼핑라이브', brand:'려', cat:'live', start:'2026-10-14', end:'', time:'19:30 – 20:30', goal:'누적 조회수 10만 회', dept:'라이브커머스팀', link:'https://www.example.com/live-hair', sales:5e8, actualSales:5.3e8 },
+  { id:'sample_07', title:'앱 정기 점검', channel:'자사몰', brand:'공통', cat:'issue', start:'2026-10-15', end:'', time:'02:00 – 04:00', goal:'서버 안정화 (서비스 일시 중단)', dept:'IT운영팀', link:'', sales:0, actualSales:0 },
+  { id:'sample_08', title:'멤버십 데이 이벤트', channel:'자사몰', brand:'공통', cat:'event', start:'2026-10-18', end:'', time:'00:00 – 23:59', goal:'멤버십 재방문율 +8%p', dept:'CRM마케팅팀', link:'', sales:1e9, actualSales:1.1e9 },
+  { id:'sample_09', title:'브랜드 라이브방송 · 바디케어', channel:'네이버 쇼핑라이브', brand:'일리오', cat:'live', start:'2026-10-20', end:'', time:'20:00 – 21:00', goal:'신규 브랜드 인지도 제고', dept:'라이브커머스팀', link:'', sales:3e8, actualSales:2.8e8 },
+  { id:'sample_10', title:'올영픽 프로모션 (건강식품)', channel:'올리브영', brand:'바이탈뷰티', cat:'promo', start:'2026-10-22', end:'2026-10-24', time:'00:00 – 23:59', goal:'이너뷰티 매출 15억 원', dept:'프로모션기획팀', link:'', sales:1.5e9, actualSales:1.6e9 },
+  { id:'sample_11', title:'결제 시스템 지연 이슈 대응', channel:'자사몰', brand:'공통', cat:'issue', start:'2026-10-22', end:'', time:'14:00 – 16:00', goal:'원인 분석 및 재발 방지책 수립', dept:'IT운영팀', link:'https://www.example.com/issue-report', sales:0, actualSales:0 },
+  { id:'sample_12', title:'할로윈 특집 기획전', channel:'올리브영', brand:'에뛰드', cat:'expo', start:'2026-10-26', end:'2026-11-01', time:'상시', goal:'시즌 상품 판매 목표 120%', dept:'MD본부', link:'https://www.example.com/expo-halloween', sales:6e9, actualSales:0 },
+  { id:'sample_13', title:'브랜드 라이브방송 · 할로윈 특가', channel:'네이버 쇼핑라이브', brand:'에뛰드', cat:'live', start:'2026-10-28', end:'', time:'20:00 – 21:30', goal:'동시 시청자 5만 명 돌파', dept:'라이브커머스팀', link:'', sales:1.2e9, actualSales:0 },
+  { id:'sample_14', title:'올영픽 프로모션 (할로윈)', channel:'올리브영', brand:'클리오', cat:'promo', start:'2026-10-28', end:'2026-10-30', time:'00:00 – 23:59', goal:'할로윈 한정 세트 완판', dept:'프로모션기획팀', link:'', sales:2e9, actualSales:0 },
+  { id:'sample_15', title:'할로윈 인증샷 이벤트', channel:'자사몰', brand:'공통', cat:'event', start:'2026-10-31', end:'', time:'00:00 – 23:59', goal:'SNS 참여 5천 건', dept:'소셜마케팅팀', link:'', sales:0, actualSales:0 },
+  { id:'sample_16', title:'블랙프라이데이 사전 안내', channel:'자사몰', brand:'공통', cat:'promo', start:'2026-11-02', end:'', time:'10:00 – 18:00', goal:'사전 알림 신청 3만 건', dept:'프로모션기획팀', link:'', sales:4e8, actualSales:0 },
+  { id:'sample_17', title:'브랜드 라이브방송 · 연말 준비', channel:'네이버 쇼핑라이브', brand:'설화수', cat:'live', start:'2026-11-04', end:'', time:'20:00 – 21:00', goal:'연말 선물세트 사전 노출', dept:'라이브커머스팀', link:'', sales:2e8, actualSales:0 },
 ];
 
 /* =========================================================
@@ -360,68 +424,166 @@ let CUSTOM_BRANDS = [...new Set(SAMPLE.map(e => e.brand))].sort();
 let CUSTOM_DEPTS = [...new Set(SAMPLE.map(e => e.dept))].sort();
 
 let viewY, viewM, selected;
-let db = null, appId = 'default-app-id';
+let db = null;
+let unsubEvents = null;
+let unsubMeta = null;
+const COLLECTION_EVENTS = 'online_events_v1';
+const DOC_META = ['online_events_meta_v1', 'config'];
+
+// Firebase 설정 문자열(JS 객체 또는 JSON) 파싱 헬퍼
+function parseFirebaseConfigInput(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+  const extracted = {};
+  keys.forEach(k => {
+    const reg = new RegExp(`["']?${k}["']?\\s*:\\s*["']([^"']+)["']`);
+    const m = raw.match(reg);
+    if (m) extracted[k] = m[1].trim();
+  });
+  if (extracted.apiKey && extracted.projectId) return extracted;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.apiKey && parsed.projectId) return parsed;
+  } catch (e) {}
+  return null;
+}
+
+// 우선순위: 1) URL 파라미터(?db=...) -> 2) 코드 내 USER_FIREBASE_CONFIG -> 3) 브라우저 저장된 설정 -> 4) 샌드박스 환경변수
+function resolveActiveFirebaseConfig() {
+  try {
+    const urlParams = new URLSearchParams(location.search);
+    const dbParam = urlParams.get('db');
+    if (dbParam) {
+      const decoded = JSON.parse(atob(dbParam));
+      if (decoded && decoded.apiKey && decoded.projectId) {
+        localStorage.setItem('eventDash.firebaseConfig', JSON.stringify(decoded));
+        return decoded;
+      }
+    }
+  } catch (e) {}
+
+  if (USER_FIREBASE_CONFIG && USER_FIREBASE_CONFIG.apiKey && USER_FIREBASE_CONFIG.projectId) {
+    return USER_FIREBASE_CONFIG;
+  }
+
+  try {
+    const savedCfg = localStorage.getItem('eventDash.firebaseConfig');
+    if (savedCfg) {
+      const parsed = JSON.parse(savedCfg);
+      if (parsed && parsed.apiKey && parsed.projectId) return parsed;
+    }
+  } catch (e) {}
+
+  if (typeof __firebase_config !== 'undefined') {
+    try {
+      const envCfg = JSON.parse(__firebase_config);
+      if (envCfg && envCfg.apiKey && envCfg.projectId) return envCfg;
+    } catch (e) {}
+  }
+  return null;
+}
 
 async function initFirebaseAndSync() {
   const statusEl = $('syncStatus');
+  const bannerEl = $('offlineBanner');
+  const activeConfig = resolveActiveFirebaseConfig();
+
+  if (!activeConfig) {
+    fallbackToLocal();
+    return;
+  }
+
   try {
-    if (typeof __firebase_config !== 'undefined' && typeof __app_id !== 'undefined') {
-      const firebaseConfig = JSON.parse(__firebase_config);
-      appId = __app_id;
-      const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
+    if (unsubEvents) { unsubEvents(); unsubEvents = null; }
+    if (unsubMeta) { unsubMeta(); unsubMeta = null; }
+
+    const app = getApps().length ? getApp() : initializeApp(activeConfig);
+    db = getFirestore(app);
+
+    // 익명 로그인이 켜져 있으면 로그인 시도, 꺼져 있어도 Firestore 공개 규칙이면 정상 작동하도록 처리
+    try {
       const auth = getAuth(app);
-      
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-
-      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'events');
-      onSnapshot(colRef, (snapshot) => {
-        const remoteEvents = [];
-        snapshot.forEach(docSnap => {
-          remoteEvents.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        if (remoteEvents.length === 0) {
-          // 최초 실행 시 샘플 데이터 자동 등록
-          SAMPLE.forEach(ev => {
-            const id = uid();
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'events', id), { ...ev, id });
-          });
-        } else {
-          EVENTS = remoteEvents;
-          syncMetaFromEvents();
-          resetViewIfNeeded();
-          renderAll();
-          if (statusEl) {
-            statusEl.textContent = '실시간 동기화 완료';
-            statusEl.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700';
-          }
-        }
-      }, (error) => {
-        console.error('Firestore sync error:', error);
-        fallbackToLocal();
-      });
-    } else {
-      fallbackToLocal();
+      await signInAnonymously(auth);
+    } catch (authErr) {
+      console.info('익명 인증 생략 (Firestore 공개 규칙 사용):', authErr.message);
     }
+
+    // 1) 초기 메타 문서 확인 및 최초 1회 샘플 데이터 세팅 (중복 생성 방지)
+    const metaRef = doc(db, DOC_META[0], DOC_META[1]);
+    const metaSnap = await getDoc(metaRef);
+    if (!metaSnap.exists()) {
+      const batch = writeBatch(db);
+      batch.set(metaRef, {
+        initialized: true,
+        channels: CUSTOM_CHANNELS,
+        brands: CUSTOM_BRANDS,
+        depts: CUSTOM_DEPTS,
+        updatedAt: Date.now()
+      });
+      SAMPLE.forEach(ev => {
+        batch.set(doc(db, COLLECTION_EVENTS, ev.id), ev);
+      });
+      await batch.commit();
+    }
+
+    // 2) 메타데이터(채널/브랜드/부서) 실시간 구독
+    unsubMeta = onSnapshot(metaRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.channels)) CUSTOM_CHANNELS = d.channels;
+        if (Array.isArray(d.brands)) CUSTOM_BRANDS = d.brands;
+        if (Array.isArray(d.depts)) CUSTOM_DEPTS = d.depts;
+        syncMetaFromEvents();
+        renderAll();
+      }
+    });
+
+    // 3) 행사 일정 실시간 구독
+    const colRef = collection(db, COLLECTION_EVENTS);
+    unsubEvents = onSnapshot(colRef, (snapshot) => {
+      const remoteEvents = [];
+      snapshot.forEach(docSnap => {
+        remoteEvents.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      EVENTS = remoteEvents;
+      syncMetaFromEvents();
+      resetViewIfNeeded();
+      renderAll();
+
+      if (statusEl) {
+        statusEl.textContent = '🟢 실시간 공유 중 ( 모든 사용자 동기화 )';
+        statusEl.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700';
+      }
+      if (bannerEl) bannerEl.classList.add('hidden');
+    }, (error) => {
+      console.error('Firestore 실시간 동기화 오류:', error);
+      fallbackToLocal('DB 권한 오류 (Firestore 규칙을 확인하세요)');
+    });
+
   } catch (e) {
-    console.warn('Firebase init fallback:', e);
+    console.warn('Firebase 연결 실패, 로컬 모드로 전환:', e);
     fallbackToLocal();
   }
 }
 
-function fallbackToLocal() {
+function fallbackToLocal(reasonText) {
+  db = null;
   const statusEl = $('syncStatus');
+  const bannerEl = $('offlineBanner');
   if (statusEl) {
-    statusEl.textContent = '오프라인 모드 (로컬 저장)';
-    statusEl.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700';
+    statusEl.textContent = reasonText || '⚪ 로컬 저장 모드 (타인에게 반영 안됨)';
+    statusEl.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800';
+  }
+  if (bannerEl) bannerEl.classList.remove('hidden');
+
+  const savedMeta = loadSavedMeta();
+  if (savedMeta) {
+    CUSTOM_CHANNELS = savedMeta.channels || CUSTOM_CHANNELS;
+    CUSTOM_BRANDS = savedMeta.brands || CUSTOM_BRANDS;
+    CUSTOM_DEPTS = savedMeta.depts || CUSTOM_DEPTS;
   }
   const saved = loadSaved();
-  EVENTS = saved ? saved : SAMPLE.map(e => ({ ...e, id: uid() }));
+  EVENTS = saved ? saved : SAMPLE.map(e => ({ ...e }));
   syncMetaFromEvents();
   resetView();
   renderAll();
@@ -430,18 +592,49 @@ function fallbackToLocal() {
 function loadSaved() {
   try { const s = localStorage.getItem('eventDash.v6'); return s ? JSON.parse(s) : null; } catch (e) { return null; }
 }
-function saveLocal() { try { localStorage.setItem('eventDash.v6', JSON.stringify(EVENTS)); } catch (e) {} }
+function saveLocal() {
+  try { localStorage.setItem('eventDash.v6', JSON.stringify(EVENTS)); } catch (e) {}
+}
+function loadSavedMeta() {
+  try { const s = localStorage.getItem('eventDash.meta.v6'); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+}
+function saveLocalMeta() {
+  try {
+    localStorage.setItem('eventDash.meta.v6', JSON.stringify({
+      channels: CUSTOM_CHANNELS,
+      brands: CUSTOM_BRANDS,
+      depts: CUSTOM_DEPTS
+    }));
+  } catch (e) {}
+}
 
-async function saveEventToDB(ev) {
-  if (db && authReady()) {
+async function saveMetaToDB() {
+  saveLocalMeta();
+  if (db) {
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'events', ev.id), ev);
-      return;
+      await setDoc(doc(db, DOC_META[0], DOC_META[1]), {
+        initialized: true,
+        channels: CUSTOM_CHANNELS,
+        brands: CUSTOM_BRANDS,
+        depts: CUSTOM_DEPTS,
+        updatedAt: Date.now()
+      }, { merge: true });
     } catch (e) {
-      console.error('Save to DB failed:', e);
+      console.error('메타데이터 저장 실패:', e);
     }
   }
-  // 로컬 Fallback
+}
+
+async function saveEventToDB(ev) {
+  if (db) {
+    try {
+      await setDoc(doc(db, COLLECTION_EVENTS, ev.id), ev);
+      return;
+    } catch (e) {
+      console.error('DB 저장 실패:', e);
+      showToast('클라우드 DB 저장에 실패했습니다. 권한 설정을 확인하세요.', false);
+    }
+  }
   const idx = EVENTS.findIndex(e => e.id === ev.id);
   if (idx >= 0) EVENTS[idx] = ev; else EVENTS.push(ev);
   saveLocal();
@@ -450,28 +643,51 @@ async function saveEventToDB(ev) {
 }
 
 async function deleteEventFromDB(id) {
-  if (db && authReady()) {
+  if (db) {
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'events', id));
+      await deleteDoc(doc(db, COLLECTION_EVENTS, id));
       return;
     } catch (e) {
-      console.error('Delete from DB failed:', e);
+      console.error('DB 삭제 실패:', e);
     }
   }
-  // 로컬 Fallback
   EVENTS = EVENTS.filter(e => e.id !== id);
   saveLocal();
   syncMetaFromEvents();
   renderAll();
 }
 
-function authReady() {
-  try {
-    const auth = getAuth();
-    return !!auth.currentUser;
-  } catch(e) {
-    return false;
+async function batchSaveEventsToDB(newEvents, replaceAll = false) {
+  if (db) {
+    try {
+      const batch = writeBatch(db);
+      if (replaceAll) {
+        EVENTS.forEach(oldEv => {
+          batch.delete(doc(db, COLLECTION_EVENTS, oldEv.id));
+        });
+      }
+      newEvents.forEach(ev => {
+        batch.set(doc(db, COLLECTION_EVENTS, ev.id), ev);
+      });
+      batch.set(doc(db, DOC_META[0], DOC_META[1]), {
+        initialized: true,
+        channels: CUSTOM_CHANNELS,
+        brands: CUSTOM_BRANDS,
+        depts: CUSTOM_DEPTS,
+        updatedAt: Date.now()
+      }, { merge: true });
+      await batch.commit();
+      return;
+    } catch (e) {
+      console.error('일괄 DB 저장 실패:', e);
+    }
   }
+  if (replaceAll) EVENTS = [...newEvents];
+  else EVENTS = [...EVENTS, ...newEvents];
+  saveLocal();
+  saveLocalMeta();
+  syncMetaFromEvents();
+  renderAll();
 }
 
 function syncMetaFromEvents() {
@@ -521,7 +737,7 @@ function resetView() {
 }
 
 function resetViewIfNeeded() {
-  if (!viewInitialized && EVENTS.length > 0) {
+  if (!viewInitialized) {
     resetView();
   }
 }
@@ -534,21 +750,21 @@ function updateFilterOptions() {
   const cSel = $('filterChannel');
   if (cSel) {
     const prevC = cSel.value;
-    cSel.innerHTML = '<option value="">전체 채널</option>' + allChannels.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
+    cSel.innerHTML = '<option value="">전체 채널</option>' + allChannels.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     cSel.value = prevC;
   }
 
   const bSel = $('filterBrand');
   if (bSel) {
     const prevB = bSel.value;
-    bSel.innerHTML = '<option value="">전체 브랜드</option>' + allBrands.map(b => `<option value="${b}">${esc(b)}</option>`).join('');
+    bSel.innerHTML = '<option value="">전체 브랜드</option>' + allBrands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
     bSel.value = prevB;
   }
 
   const dSel = $('filterDept');
   if (dSel) {
     const prevD = dSel.value;
-    dSel.innerHTML = '<option value="">전체 부서</option>' + allDepts.map(d => `<option value="${d}">${esc(d)}</option>`).join('');
+    dSel.innerHTML = '<option value="">전체 부서</option>' + allDepts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
     dSel.value = prevD;
   }
 }
@@ -561,21 +777,21 @@ function updateEditDropdowns() {
   const fChan = $('f_channel');
   if (fChan) {
     const prevC = fChan.value;
-    fChan.innerHTML = channels.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
+    fChan.innerHTML = channels.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     if (channels.includes(prevC)) fChan.value = prevC;
   }
 
   const fBrand = $('f_brand');
   if (fBrand) {
     const prevB = fBrand.value;
-    fBrand.innerHTML = brands.map(b => `<option value="${b}">${esc(b)}</option>`).join('');
+    fBrand.innerHTML = brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
     if (brands.includes(prevB)) fBrand.value = prevB;
   }
 
   const fDept = $('f_dept');
   if (fDept) {
     const prevD = fDept.value;
-    fDept.innerHTML = depts.map(d => `<option value="${d}">${esc(d)}</option>`).join('');
+    fDept.innerHTML = depts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
     if (depts.includes(prevD)) fDept.value = prevD;
   }
 }
@@ -584,6 +800,7 @@ function updateEditDropdowns() {
  * 4. 렌더링
  * ========================================================= */
 function renderAll() {
+  if (!viewInitialized) resetView();
   updateFilterOptions();
   renderSummary();
   renderCalendar();
@@ -645,7 +862,10 @@ function renderCalendar() {
   for (let d = 1; d <= days; d++) {
     const k = key(viewY, viewM, d), evs = eventsOnFiltered(k), dow = (first + d - 1) % 7;
     const numCls = dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-blue-500' : 'text-navy-900';
-    const chips = evs.slice(0, 3).map(e => `<span class="block truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium ${CATEGORIES[e.cat].chip}">[${esc(e.channel)}/${esc(e.brand)}] ${esc(e.title)}</span>`).join('');
+    const chips = evs.slice(0, 3).map(e => {
+      const catObj = CATEGORIES[e.cat] || CATEGORIES.event;
+      return `<span class="block truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium ${catObj.chip}">[${esc(e.channel)}/${esc(e.brand)}] ${esc(e.title)}</span>`;
+    }).join('');
     const more = evs.length > 3 ? `<span class="text-[11px] text-slate-400 pl-1">+${evs.length - 3}건 더보기</span>` : '';
     html += `<button class="day text-left p-1.5 border-b border-slate-50 flex flex-col gap-1 ${k === selected ? 'bg-navy-50 ring-2 ring-inset ring-navy-600 rounded-xl' : ''}" data-date="${k}" aria-label="${viewM + 1}월 ${d}일, 행사 ${evs.length}건">
       <div class="flex items-center justify-between w-full">
@@ -684,7 +904,7 @@ function renderPanel() {
   }
   const row = (k, v) => `<div class="flex gap-3 text-sm"><dt class="w-20 shrink-0 text-slate-400">${k}</dt><dd>${v}</dd></div>`;
   panelBodyEl.innerHTML = evs.map(e => {
-    const c = CATEGORIES[e.cat], url = safeUrl(e.link);
+    const c = CATEGORIES[e.cat] || CATEGORIES.event, url = safeUrl(e.link);
     const period = e.end && e.end !== e.start ? `${e.start.slice(5).replace('-','/')} – ${e.end.slice(5).replace('-','/')}` : '';
     const linkRow = url ? row('링크', `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="text-navy-600 font-medium hover:underline break-all">바로가기 ↗</a>`) : '';
     const targetVal = e.sales || 0;
@@ -720,7 +940,7 @@ function renderCharts() {
   const deptChartEl = $('deptChart');
 
   if (dailyNoteEl && dailyChartEl && dailyAxisEl) {
-    const mEv = eventsInMonthFiltered(viewY, viewM), days = new Date(viewY, viewM + 1, 0).getDate();
+    const days = new Date(viewY, viewM + 1, 0).getDate();
     const counts = Array.from({ length: days }, (_, i) => eventsOnFiltered(key(viewY, viewM, i + 1)).length);
     const max = Math.max(1, ...counts);
     dailyNoteEl.textContent = `${viewM + 1}월 일평균 ${(counts.reduce((a, b) => a + b, 0) / days).toFixed(1)}건 · 최대 ${Math.max(...counts)}건`;
@@ -763,7 +983,7 @@ function renderTable() {
   if (!list.length) { tbodyEl.innerHTML = '<tr><td colspan="11" class="py-12 text-center text-slate-400">조건에 맞는 행사가 없습니다</td></tr>'; return; }
   const md = s => s.slice(5).replace('-', '/');
   tbodyEl.innerHTML = list.map(e => {
-    const url = safeUrl(e.link), c = CATEGORIES[e.cat];
+    const url = safeUrl(e.link), c = CATEGORIES[e.cat] || CATEGORIES.event;
     const targetVal = e.sales || 0;
     const actualVal = e.actualSales || 0;
     const rate = targetVal > 0 ? Math.round((actualVal / targetVal) * 100) : 0;
@@ -795,6 +1015,7 @@ function showToast(msg, undoable) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.replace('flex', 'hidden'), 6000);
 }
+
 function deleteEvent(id) {
   const ev = EVENTS.find(e => e.id === id);
   if (!ev) return;
@@ -802,6 +1023,7 @@ function deleteEvent(id) {
   deleteEventFromDB(id);
   showToast(`"${ev.title}" 행사를 삭제했습니다.`, true);
 }
+
 const undoBtn = $('undo');
 if (undoBtn) {
   undoBtn.onclick = () => {
@@ -846,7 +1068,7 @@ function openEdit(id, defaultDate) {
   if (fTitleEl) fTitleEl.value = ev.title || ''; 
   if (fChannelEl) fChannelEl.value = ev.channel || '자사몰'; 
   if (fBrandEl) fBrandEl.value = ev.brand || '공통'; 
-  if (fCatEl) fCatEl.value = ev.cat; 
+  if (fCatEl) fCatEl.value = ev.cat || 'event'; 
   if (fDeptEl) fDeptEl.value = ev.dept || '프로모션기획팀';
   if (fStartEl) fStartEl.value = ev.start || targetDate; 
   if (fEndEl) fEndEl.value = ev.end && ev.end !== ev.start ? ev.end : '';
@@ -900,7 +1122,7 @@ function saveEdit() {
   const d = parseKey(ev.start);
   viewY = d.getFullYear(); viewM = d.getMonth();
   closeEdit(); 
-  showToast('저장했습니다.', false);
+  showToast(db ? '저장 완료 (모든 사용자에게 실시간 반영됨)' : '브라우저에 저장했습니다.', false);
 }
 
 const saveEditBtn = $('saveEdit');
@@ -914,8 +1136,8 @@ if (editModalEl) {
   editModalEl.addEventListener('mousedown', e => { if (e.target === editModalEl) closeEdit(); });
 }
 
-// 채널/브랜드/부서 관리 모달 제어 (검색 기능 포함)
-let currentMetaType = 'channels'; // 'channels' | 'brands' | 'depts'
+// 채널/브랜드/부서 관리 모달 (클라우드 실시간 동기화 지원)
+let currentMetaType = 'channels';
 function openMetaModal(type) {
   currentMetaType = type;
   const titles = { channels:'채널명 관리', brands:'브랜드명 관리', depts:'담당 부서 관리' };
@@ -942,6 +1164,7 @@ function setActiveMetaList(list) {
   if (currentMetaType === 'channels') CUSTOM_CHANNELS = list;
   else if (currentMetaType === 'brands') CUSTOM_BRANDS = list;
   else CUSTOM_DEPTS = list;
+  saveMetaToDB();
 }
 
 function renderMetaList() {
@@ -983,7 +1206,7 @@ if (metaAddBtn) {
     if (!metaInputEl) return;
     const val = metaInputEl.value.trim();
     if (!val) return;
-    let list = getActiveMetaList();
+    let list = [...getActiveMetaList()];
     if (!list.includes(val)) {
       list.push(val);
       list.sort();
@@ -1012,39 +1235,106 @@ if (metaModalEl) {
 }
 
 /* =========================================================
- * 6. 필터 및 이벤트 리스너 연결
+ * 6. 실시간 공유(Firebase DB) 설정 모달 이벤트
  * ========================================================= */
-const filterChannelEl = $('filterChannel');
-if (filterChannelEl) filterChannelEl.onchange = renderAll;
-const filterBrandEl = $('filterBrand');
-if (filterBrandEl) filterBrandEl.onchange = renderAll;
-const filterDeptEl = $('filterDept');
-if (filterDeptEl) filterDeptEl.onchange = renderAll;
-const filterStartDateEl = $('filterStartDate');
-if (filterStartDateEl) filterStartDateEl.onchange = renderAll;
-const filterEndDateEl = $('filterEndDate');
-if (filterEndDateEl) filterEndDateEl.onchange = renderAll;
-
-const resetFiltersEl = $('resetFilters');
-if (resetFiltersEl) {
-  resetFiltersEl.onclick = () => {
-    if ($('filterChannel')) $('filterChannel').value = '';
-    if ($('filterBrand')) $('filterBrand').value = '';
-    if ($('filterDept')) $('filterDept').value = '';
-    if ($('filterStartDate')) $('filterStartDate').value = '';
-    if ($('filterEndDate')) $('filterEndDate').value = '';
-    renderAll();
-  };
+function showDbConfigMsg(ok, msg) {
+  const el = $('dbConfigMsg');
+  if (!el) return;
+  el.className = `mt-3 rounded-xl px-4 py-3 text-sm ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`;
+  el.textContent = msg;
 }
 
-const addEventBtn = $('addEvent');
-if (addEventBtn) addEventBtn.onclick = () => openEdit(null);
-const panelAddBtn = $('panelAddBtn');
-if (panelAddBtn) panelAddBtn.onclick = () => openEdit(null, selected);
-const qEl = $('q');
-if (qEl) qEl.oninput = renderTable;
-const onlyMonthEl = $('onlyMonth');
-if (onlyMonthEl) onlyMonthEl.onchange = renderTable;
+function openDbConfigModal() {
+  const modal = $('dbConfigModal');
+  const input = $('firebaseConfigInput');
+  const msg = $('dbConfigMsg');
+  if (msg) msg.className = 'hidden';
+  const current = resolveActiveFirebaseConfig();
+  if (input && current) {
+    input.value = JSON.stringify(current, null, 2);
+  }
+  if (modal) modal.classList.replace('hidden', 'flex');
+}
+
+function closeDbConfigModal() {
+  const modal = $('dbConfigModal');
+  if (modal) modal.classList.replace('flex', 'hidden');
+}
+
+$('openDbConfig')?.addEventListener('click', openDbConfigModal);
+$('bannerConfigBtn')?.addEventListener('click', openDbConfigModal);
+$('closeDbConfig')?.addEventListener('click', closeDbConfigModal);
+$('dbConfigModal')?.addEventListener('mousedown', e => {
+  if (e.target === $('dbConfigModal')) closeDbConfigModal();
+});
+
+$('saveDbConfigBtn')?.addEventListener('click', async () => {
+  const raw = $('firebaseConfigInput')?.value || '';
+  const cfg = parseFirebaseConfigInput(raw);
+  if (!cfg) {
+    return showDbConfigMsg(false, '유효한 Firebase 설정(apiKey, projectId 포함)을 찾지 못했습니다. 복사한 코드를 다시 확인해 주세요.');
+  }
+  localStorage.setItem('eventDash.firebaseConfig', JSON.stringify(cfg));
+  showDbConfigMsg(true, '설정이 저장되었습니다. 실시간 DB에 연결 중입니다...');
+  await initFirebaseAndSync();
+  setTimeout(closeDbConfigModal, 900);
+});
+
+$('copyShareUrlBtn')?.addEventListener('click', () => {
+  const raw = $('firebaseConfigInput')?.value || '';
+  const cfg = parseFirebaseConfigInput(raw) || resolveActiveFirebaseConfig();
+  if (!cfg) {
+    return showDbConfigMsg(false, '먼저 Firebase 설정 코드를 입력창에 붙여넣어 주세요.');
+  }
+  const encoded = btoa(JSON.stringify(cfg));
+  const shareUrl = `${location.origin}${location.pathname}?db=${encodeURIComponent(encoded)}`;
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    showDbConfigMsg(true, 'DB 설정이 포함된 공유 URL이 클립보드에 복사되었습니다! 이 링크를 다른 사람에게 전달하면 즉시 같은 DB로 연결됩니다.');
+  });
+});
+
+$('downloadConfiguredHtmlBtn')?.addEventListener('click', () => {
+  const raw = $('firebaseConfigInput')?.value || '';
+  const cfg = parseFirebaseConfigInput(raw) || resolveActiveFirebaseConfig();
+  if (!cfg) {
+    return showDbConfigMsg(false, '먼저 Firebase 설정 코드를 입력창에 붙여넣어 주세요.');
+  }
+  const replacement = `/*__FIREBASE_CONFIG_START__*/\nconst USER_FIREBASE_CONFIG = ${JSON.stringify(cfg, null, 2)};\n/*__FIREBASE_CONFIG_END__*/`;
+  const fullHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML.replace(
+    /\/\*__FIREBASE_CONFIG_START__\*\/[\s\S]*?\/\*__FIREBASE_CONFIG_END__\*\//,
+    replacement
+  );
+  const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'index.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showDbConfigMsg(true, '설정이 내장된 index.html 파일이 다운로드되었습니다! 이 파일을 GitHub에 업로드(Push)하면 모든 접속자에게 실시간 공유가 즉시 반영됩니다.');
+});
+
+/* =========================================================
+ * 7. 필터 및 이벤트 리스너 연결
+ * ========================================================= */
+$('filterChannel')?.addEventListener('change', renderAll);
+$('filterBrand')?.addEventListener('change', renderAll);
+$('filterDept')?.addEventListener('change', renderAll);
+$('filterStartDate')?.addEventListener('change', renderAll);
+$('filterEndDate')?.addEventListener('change', renderAll);
+
+$('resetFilters')?.addEventListener('click', () => {
+  if ($('filterChannel')) $('filterChannel').value = '';
+  if ($('filterBrand')) $('filterBrand').value = '';
+  if ($('filterDept')) $('filterDept').value = '';
+  if ($('filterStartDate')) $('filterStartDate').value = '';
+  if ($('filterEndDate')) $('filterEndDate').value = '';
+  renderAll();
+});
+
+$('addEvent')?.addEventListener('click', () => openEdit(null));
+$('panelAddBtn')?.addEventListener('click', () => openEdit(null, selected));
+$('q')?.addEventListener('input', renderTable);
+$('onlyMonth')?.addEventListener('change', renderTable);
 
 document.addEventListener('click', e => {
   hideCtx();
@@ -1067,14 +1357,11 @@ document.addEventListener('contextmenu', e => {
   m.style.top = Math.min(e.clientY, innerHeight - m.offsetHeight - 8) + 'px';
 });
 
-const ctxMenu = $('ctx');
-if (ctxMenu) {
-  ctxMenu.addEventListener('click', e => {
-    const b = e.target.closest('[data-ctx]');
-    if (!b) return;
-    b.dataset.ctx === 'edit' ? openEdit(ctxId) : deleteEvent(ctxId);
-  });
-}
+$('ctx')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-ctx]');
+  if (!b) return;
+  b.dataset.ctx === 'edit' ? openEdit(ctxId) : deleteEvent(ctxId);
+});
 addEventListener('scroll', hideCtx, true); addEventListener('blur', hideCtx);
 
 function select(k) { selected = k; renderCalendar(); renderPanel(); renderCharts(); }
@@ -1084,15 +1371,12 @@ function moveMonth(delta) {
   renderAll();
 }
 
-const prevBtn = $('prev');
-if (prevBtn) prevBtn.onclick = () => moveMonth(-1);
-const nextBtn = $('next');
-if (nextBtn) nextBtn.onclick = () => moveMonth(1);
-const todayBtn = $('todayBtn');
-if (todayBtn) todayBtn.onclick = () => { viewY = TODAY.getFullYear(); viewM = TODAY.getMonth(); selected = TODAY_KEY; renderAll(); };
+$('prev')?.addEventListener('click', () => moveMonth(-1));
+$('next')?.addEventListener('click', () => moveMonth(1));
+$('todayBtn')?.addEventListener('click', () => { viewY = TODAY.getFullYear(); viewM = TODAY.getMonth(); selected = TODAY_KEY; renderAll(); });
 
 /* =========================================================
- * 7. 엑셀/CSV 업로드 및 파싱
+ * 8. 엑셀/CSV 업로드 및 파싱
  * ========================================================= */
 const ALIASES = {
   title:['행사명','제목','행사','title','name'],
@@ -1209,7 +1493,7 @@ function readFile(f) {
   isExcel ? reader.readAsArrayBuffer(f) : reader.readAsText(f, 'UTF-8');
 }
 
-function applyData() {
+async function applyData() {
   const pasteEl = $('paste');
   if (!pasteEl) return;
   const text = pasteEl.value.trim();
@@ -1218,7 +1502,8 @@ function applyData() {
   if (res.error) return showResult(false, res.error);
   if (!res.events.length) return showResult(false, '유효한 행사 행이 없습니다.');
   
-  res.events.forEach(ev => saveEventToDB(ev));
+  const replaceAll = $('replaceOnUpload')?.checked || false;
+  await batchSaveEventsToDB(res.events, replaceAll);
   showResult(true, `${res.events.length}건 반영 완료` + (res.skipped.length ? ` · 제외 ${res.skipped.length}건` : ''));
   setTimeout(closeModal, 900);
 }
@@ -1245,48 +1530,36 @@ const closeModal = () => {
   if (m) m.classList.replace('flex', 'hidden');
 };
 
-const openUploadBtn = $('openUpload');
-if (openUploadBtn) openUploadBtn.onclick = openModal;
-const closeModalBtn = $('closeModal');
-if (closeModalBtn) closeModalBtn.onclick = closeModal;
-const modalEl = $('modal');
-if (modalEl) {
-  modalEl.addEventListener('mousedown', e => { if (e.target === modalEl) closeModal(); });
-}
+$('openUpload')?.addEventListener('click', openModal);
+$('closeModal')?.addEventListener('click', closeModal);
+$('modal')?.addEventListener('mousedown', e => { if (e.target === $('modal')) closeModal(); });
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { 
     closeModal(); 
     closeEdit(); 
+    closeDbConfigModal();
     hideCtx(); 
     const metaModal = $('metaModal');
     if (metaModal) metaModal.classList.replace('flex', 'hidden'); 
   }
 });
 
-const applyBtn = $('appiy');
-if (applyBtn) applyBtn.onclick = applyData;
-const tplBtn = $('tpl');
-if (tplBtn) tplBtn.onclick = downloadTemplate;
-const fileInput = $('file');
-if (fileInput) fileInput.onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); e.target.value = ''; };
+$('apply')?.addEventListener('click', applyData);
+$('tpl')?.addEventListener('click', downloadTemplate);
+$('file')?.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); e.target.value = ''; });
 
-const resetDataBtn = $('resetData');
-if (resetDataBtn) {
-  resetDataBtn.onclick = () => {
-    // 기존 데이터 초기화 후 샘플 재등록
-    EVENTS.forEach(e => deleteEventFromDB(e.id));
-    SAMPLE.forEach(ev => {
-      const id = uid();
-      saveEventToDB({ ...ev, id });
-    });
-    const pasteEl = $('paste');
-    const fileNameEl = $('fileName');
-    if (pasteEl) pasteEl.value = ''; 
-    if (fileNameEl) fileNameEl.textContent = '선택된 파일 없음';
-    showResult(true, '기본 데이터로 되돌렸습니다.');
-  };
-}
+$('resetData')?.addEventListener('click', async () => {
+  CUSTOM_CHANNELS = [...new Set(SAMPLE.map(e => e.channel))].sort();
+  CUSTOM_BRANDS = [...new Set(SAMPLE.map(e => e.brand))].sort();
+  CUSTOM_DEPTS = [...new Set(SAMPLE.map(e => e.dept))].sort();
+  await batchSaveEventsToDB(SAMPLE.map(ev => ({ ...ev })), true);
+  const pasteEl = $('paste');
+  const fileNameEl = $('fileName');
+  if (pasteEl) pasteEl.value = ''; 
+  if (fileNameEl) fileNameEl.textContent = '선택된 파일 없음';
+  showResult(true, '기본 샘플 데이터로 초기화되었습니다.');
+});
 
 const dropZone = $('drop');
 if (dropZone) {
@@ -1296,12 +1569,8 @@ if (dropZone) {
   }));
 }
 
-// 적용 버튼 이벤트 바인딩 보완
-const applyBtnFixed = $('apply');
-if (applyBtnFixed) applyBtnFixed.onclick = applyData;
-
 /* =========================================================
- * 8. 초기 실행
+ * 9. 초기 실행
  * ========================================================= */
 renderLegend();
 initFirebaseAndSync();
